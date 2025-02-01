@@ -1,9 +1,19 @@
 import pygame
 import math
 import random
+import logging
+from datetime import datetime
+from statistics import mean, stdev
 from robot import Robot
 from map_simulation import MapSimulation
 from monte_carlo import MonteCarloLocalization, Particle
+
+# Setup logging
+logging.basicConfig(
+    filename=f'mcl_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt',
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s'
+)
 
 def calculate_motion_delta(old_x, old_y, old_angle, new_x, new_y, new_angle):
     """Calculate motion delta between two poses"""
@@ -16,17 +26,53 @@ def calculate_motion_delta(old_x, old_y, old_angle, new_x, new_y, new_angle):
         delta_theta += 2 * math.pi
     return delta_x, delta_y, delta_theta
 
-def draw_particles(screen, particles, robot, color=(255, 0, 255), size=2):
-    """Draw particles on screen with offset visualization"""
-    # Calculate mean position of particles
+def calculate_particle_statistics(particles, robot):
+    """Calculate statistical information about particles"""
     if not particles:
-        return
+        return None
         
-    mean_x = sum(p.x for p in particles) / len(particles)
-    mean_y = sum(p.y for p in particles) / len(particles)
+    # Calculate mean position
+    mean_x = mean(p.x for p in particles)
+    mean_y = mean(p.y for p in particles)
+    mean_theta = mean(p.theta for p in particles)
+    
+    # Calculate standard deviations
+    std_x = stdev(p.x for p in particles)
+    std_y = stdev(p.y for p in particles)
+    std_theta = stdev(p.theta for p in particles)
+    
+    # Calculate error from true position
+    position_error = math.sqrt((mean_x - robot.x)**2 + (mean_y - robot.y)**2)
+    angle_error = abs(mean_theta - robot.angle)
+    while angle_error > math.pi:
+        angle_error -= 2 * math.pi
+    
+    # Calculate particle spread (uncertainty)
+    uncertainty = math.sqrt(std_x**2 + std_y**2)
+    
+    return {
+        'estimated_x': mean_x,
+        'estimated_y': mean_y,
+        'estimated_theta': mean_theta,
+        'position_error': position_error,
+        'angle_error': math.degrees(angle_error),
+        'uncertainty': uncertainty,
+        'std_x': std_x,
+        'std_y': std_y,
+        'std_theta': math.degrees(std_theta)
+    }
+
+def draw_particles(screen, particles, robot, color=(255, 0, 255), size=2):
+    """Draw particles on screen with offset visualization and statistics"""
+    if not particles:
+        return None
+        
+    stats = calculate_particle_statistics(particles, robot)
+    mean_x = stats['estimated_x']
+    mean_y = stats['estimated_y']
     
     # Draw offset circle
-    offset_radius = math.sqrt((mean_x - robot.x)**2 + (mean_y - robot.y)**2)
+    offset_radius = stats['position_error']
     pygame.draw.circle(screen, (0, 255, 0), (int(robot.x), int(robot.y)), 
                       int(offset_radius), 1)
     
@@ -35,9 +81,7 @@ def draw_particles(screen, particles, robot, color=(255, 0, 255), size=2):
     
     # Draw particles
     for p in particles:
-        # Make particles more visible
         pygame.draw.circle(screen, color, (int(p.x), int(p.y)), size)
-        # Draw direction line
         end_x = p.x + size * 2 * math.cos(p.theta)
         end_y = p.y + size * 2 * math.sin(p.theta)
         pygame.draw.line(screen, color, (p.x, p.y), (end_x, end_y), 1)
@@ -46,6 +90,22 @@ def draw_particles(screen, particles, robot, color=(255, 0, 255), size=2):
     pygame.draw.line(screen, (0, 255, 0), 
                     (robot.x, robot.y), 
                     (mean_x, mean_y), 1)
+    
+    # Draw statistics on screen
+    font = pygame.font.Font(None, 24)
+    stats_texts = [
+        f"Estimated Position: ({stats['estimated_x']:.1f}, {stats['estimated_y']:.1f})",
+        f"Estimated Heading: {math.degrees(stats['estimated_theta']):.1f}°",
+        f"Position Error: {stats['position_error']:.1f}px",
+        f"Angle Error: {stats['angle_error']:.1f}°",
+        f"Uncertainty: {stats['uncertainty']:.1f}px"
+    ]
+    
+    for i, text in enumerate(stats_texts):
+        surface = font.render(text, True, (255, 255, 255))
+        screen.blit(surface, (10, 10 + i * 25))
+    
+    return stats
 
 def random_field_position(width, height):
     """Generate random position within field boundaries"""
@@ -54,6 +114,18 @@ def random_field_position(width, height):
     y = random.uniform(margin, height - margin)
     theta = random.uniform(0, 2 * math.pi)
     return x, y, theta
+
+def log_statistics(stats, frame_count):
+    """Log particle filter statistics"""
+    if stats:
+        logging.info(
+            f"Frame {frame_count} - "
+            f"Estimated Position: ({stats['estimated_x']:.2f}, {stats['estimated_y']:.2f}), "
+            f"Heading: {math.degrees(stats['estimated_theta']):.2f}° | "
+            f"Errors - Position: {stats['position_error']:.2f}px, "
+            f"Angle: {stats['angle_error']:.2f}° | "
+            f"Uncertainty: {stats['uncertainty']:.2f}px"
+        )
 
 def main():
     pygame.init()
@@ -73,10 +145,10 @@ def main():
         robot_theta=robot.angle
     )
     
-    prev_x, prev_y, prev_angle = robot.x, robot.y, robot.angle
-
+    frame_count = 0
     running = True
     while running:
+        frame_count += 1
         screen.fill((0, 0, 0))
         map_simulation.draw_map(screen)
 
@@ -99,8 +171,11 @@ def main():
         mcl.sensor_update(robot, map_lines)
         mcl.resample()
 
-        # Draw particles and robot
-        draw_particles(screen, mcl.particles, robot)  # Menambahkan parameter robot
+        # Draw particles, robot, and get statistics
+        stats = draw_particles(screen, mcl.particles, robot)
+        if stats and frame_count % 30 == 0:  # Log every 30 frames
+            log_statistics(stats, frame_count)
+            
         robot.draw(screen)
 
         pygame.display.flip()
