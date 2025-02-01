@@ -16,8 +16,24 @@ def calculate_motion_delta(old_x, old_y, old_angle, new_x, new_y, new_angle):
         delta_theta += 2 * math.pi
     return delta_x, delta_y, delta_theta
 
-def draw_particles(screen, particles, color=(255, 0, 255), size=2):
-    """Draw particles on screen"""
+def draw_particles(screen, particles, robot, color=(255, 0, 255), size=2):
+    """Draw particles on screen with offset visualization"""
+    # Calculate mean position of particles
+    if not particles:
+        return
+        
+    mean_x = sum(p.x for p in particles) / len(particles)
+    mean_y = sum(p.y for p in particles) / len(particles)
+    
+    # Draw offset circle
+    offset_radius = math.sqrt((mean_x - robot.x)**2 + (mean_y - robot.y)**2)
+    pygame.draw.circle(screen, (0, 255, 0), (int(robot.x), int(robot.y)), 
+                      int(offset_radius), 1)
+    
+    # Draw mean position indicator
+    pygame.draw.circle(screen, (0, 255, 0), (int(mean_x), int(mean_y)), 5, 1)
+    
+    # Draw particles
     for p in particles:
         # Make particles more visible
         pygame.draw.circle(screen, color, (int(p.x), int(p.y)), size)
@@ -25,6 +41,11 @@ def draw_particles(screen, particles, color=(255, 0, 255), size=2):
         end_x = p.x + size * 2 * math.cos(p.theta)
         end_y = p.y + size * 2 * math.sin(p.theta)
         pygame.draw.line(screen, color, (p.x, p.y), (end_x, end_y), 1)
+        
+    # Draw line between robot and mean particle position
+    pygame.draw.line(screen, (0, 255, 0), 
+                    (robot.x, robot.y), 
+                    (mean_x, mean_y), 1)
 
 def random_field_position(width, height):
     """Generate random position within field boundaries"""
@@ -79,7 +100,7 @@ def main():
         mcl.resample()
 
         # Draw particles and robot
-        draw_particles(screen, mcl.particles)
+        draw_particles(screen, mcl.particles, robot)  # Menambahkan parameter robot
         robot.draw(screen)
 
         pygame.display.flip()
