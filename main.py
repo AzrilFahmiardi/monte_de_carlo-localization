@@ -42,8 +42,15 @@ def main():
 
     # Initialize map, robot, and particle filter
     map_simulation = MapSimulation(width, height, 20)
-    robot = Robot(400, 300, 0)
-    mcl = MonteCarloLocalization(num_particles=2000, width=width, height=height)
+    robot = Robot(400, 300, 0)  # Initial robot position
+    mcl = MonteCarloLocalization(
+        num_particles=2000, 
+        width=width, 
+        height=height,
+        robot_x=robot.x,
+        robot_y=robot.y,
+        robot_theta=robot.angle
+    )
     
     prev_x, prev_y, prev_angle = robot.x, robot.y, robot.angle
 
@@ -84,9 +91,9 @@ def main():
                 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
-                    # Reset robot to center and reinitialize particles
+                    # Reset robot to center and reinitialize particles around it
                     robot = Robot(400, 300, 0)
-                    mcl.reinitialize_particles()
+                    mcl.reinitialize_particles(robot.x, robot.y, robot.angle)
                     
                 elif event.key == pygame.K_i:
                     # Teleport robot to random position

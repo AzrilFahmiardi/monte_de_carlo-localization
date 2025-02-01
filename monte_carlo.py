@@ -10,24 +10,50 @@ class Particle:
         self.weight = 1.0
 
 class MonteCarloLocalization:
-    def __init__(self, num_particles, width, height):
+    def __init__(self, num_particles, width, height, robot_x=400, robot_y=300, robot_theta=0):
         self.num_particles = num_particles
         self.width = width
         self.height = height
         # Configure key parameters
         self.min_particles = num_particles // 4
-        self.recovery_alpha = 0.3  # Increased from 0.1 for better recovery
+        self.recovery_alpha = 0.3
         self.effective_particles_ratio = 0.5
         # Motion model noise parameters
-        self.alpha1 = 0.2  # Increased noise parameters
+        self.alpha1 = 0.2
         self.alpha2 = 0.2
         self.alpha3 = 0.3
         self.alpha4 = 0.2
-        self.particles = [self.random_particle() for _ in range(num_particles)]
+        
+        # Initialize particles around robot's starting position
+        self.initial_spread = 50  # Radius for initial particle spread
+        self.particles = self.initialize_particles_around(robot_x, robot_y, robot_theta)
         
         # Add kidnapping detection parameters
         self.avg_weight_history = []
         self.weight_history_size = 10
+
+    def initialize_particles_around(self, center_x, center_y, center_theta):
+        """Initialize particles in a circular area around a given position"""
+        particles = []
+        for _ in range(self.num_particles):
+            # Generate random distance and angle from center
+            distance = random.uniform(0, self.initial_spread)
+            angle = random.uniform(0, 2 * math.pi)
+            
+            # Calculate particle position
+            x = center_x + distance * math.cos(angle)
+            y = center_y + distance * math.sin(angle)
+            # Random orientation with slight variation around robot's orientation
+            theta = random.gauss(center_theta, math.pi/6)  # Standard deviation of 30 degrees
+            
+            particles.append(Particle(x, y, theta))
+        return particles
+
+    def reinitialize_particles(self, robot_x=None, robot_y=None, robot_theta=0):
+        """Reinitialize particles around robot's current position"""
+        if robot_x is None or robot_y is None:
+            robot_x, robot_y = 400, 300  # Default to center if no position specified
+        self.particles = self.initialize_particles_around(robot_x, robot_y, robot_theta)
 
     def detect_kidnapping(self):
         """Detect if robot might have been kidnapped based on particle weights"""
@@ -36,21 +62,13 @@ class MonteCarloLocalization:
             historical_avg = sum(self.avg_weight_history) / len(self.avg_weight_history)
             
             # If current weights are significantly lower than historical average
-            if current_avg < historical_avg * self.kidnapping_threshold:
+            if current_avg < historical_avg * 0.5:  # kidnapping threshold of 0.5
                 return True
                 
             # Update history
             self.avg_weight_history.pop(0)
             self.avg_weight_history.append(current_avg)
         return False
-        
-    def random_particle(self):
-        # Generate particles within known field boundaries (white lines)
-        margin = 50  # Increased margin for better boundary handling
-        x = random.uniform(100 + margin, 700 - margin)  # Field boundaries from map
-        y = random.uniform(100 + margin, 500 - margin)
-        theta = random.uniform(0, 2 * math.pi)
-        return Particle(x, y, theta)
 
     def handle_kidnapping(self):
         """Recovery behavior when kidnapping is detected"""
@@ -69,6 +87,14 @@ class MonteCarloLocalization:
         if total_weight > 0:
             for p in self.particles:
                 p.weight /= total_weight
+
+    def random_particle(self):
+        # Generate particles within known field boundaries
+        margin = 50
+        x = random.uniform(100 + margin, 700 - margin)
+        y = random.uniform(100 + margin, 500 - margin)
+        theta = random.uniform(0, 2 * math.pi)
+        return Particle(x, y, theta)
 
     def motion_update(self, delta_x, delta_y, delta_theta):
         """Improved motion model with better noise modeling"""
@@ -92,7 +118,7 @@ class MonteCarloLocalization:
             particle.y += noisy_translation * math.sin(particle.theta)
             particle.theta = (particle.theta + noisy_rotation) % (2 * math.pi)
             
-            # Bounce particles off boundaries instead of clamping
+            # Bounce particles off boundaries
             self.handle_boundaries(particle)
 
     def handle_boundaries(self, particle):
@@ -136,8 +162,6 @@ class MonteCarloLocalization:
         # Check for kidnapping
         if self.detect_kidnapping():
             self.handle_kidnapping()
-        else:
-            self.check_and_recover()
 
     def get_robot_measurements(self, robot, map_lines):
         """Get actual measurements from robot's LIDAR"""
@@ -175,22 +199,8 @@ class MonteCarloLocalization:
             
         return likelihood
 
-    def check_and_recover(self):
-        """Check for particle filter degeneracy and recover if needed"""
-        # Calculate effective number of particles
-        neff = 1.0 / sum(p.weight ** 2 for p in self.particles)
-        
-        if neff < self.num_particles * self.effective_particles_ratio:
-            # Add random particles for recovery
-            num_random = int(self.num_particles * self.recovery_alpha)
-            sorted_particles = sorted(self.particles, key=lambda p: p.weight, reverse=True)
-            
-            # Keep best particles and add random ones
-            self.particles = sorted_particles[:-num_random]
-            self.particles.extend([self.random_particle() for _ in range(num_random)])
-
     def resample(self):
-        """Improved resampling with systematic resampling"""
+        """Systematic resampling"""
         new_particles = []
         
         # Systematic resampling
@@ -201,12 +211,13 @@ class MonteCarloLocalization:
         for position in positions:
             while cumulative_sum[i] < position:
                 i += 1
-            # Add noise to resampled particles to prevent sample impoverishment
+            # Add noise to resampled particles
             new_particle = Particle(
                 self.particles[i].x + random.gauss(0, 0.5),
                 self.particles[i].y + random.gauss(0, 0.5),
                 (self.particles[i].theta + random.gauss(0, 0.05)) % (2 * math.pi)
             )
+            new_particle.weight = 1.0 / self.num_particles
             new_particles.append(new_particle)
             
         self.particles = new_particles
@@ -219,7 +230,6 @@ class MonteCarloLocalization:
         
         min_dist = ray_length
         
-        # Check intersection with each line segment
         for line in map_lines:
             start, end = line
             intersection = self.line_intersection(
