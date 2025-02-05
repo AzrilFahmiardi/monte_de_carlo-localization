@@ -1,0 +1,1 @@
+2025-02-05 18:57:02,851 - Frame 30 - Estimated Position: (494.49, 301.19), Heading: 181.01° | Errors - Position: 18.23px, Angle: -144.62° | Uncertainty: 14.82px
