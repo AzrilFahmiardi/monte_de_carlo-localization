@@ -2,6 +2,7 @@ import pygame
 import math
 import random
 import logging
+import os
 from datetime import datetime
 from statistics import mean, stdev
 from robot import Robot
@@ -9,8 +10,11 @@ from map_simulation import MapSimulation
 from monte_carlo import MonteCarloLocalization, Particle
 
 # Setup logging
+log_folder = 'logs'
+os.makedirs(log_folder, exist_ok=True)
+log_filename = os.path.join(log_folder, f'mcl_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt')
 logging.basicConfig(
-    filename=f'mcl_log_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt',
+    filename=log_filename,
     level=logging.INFO,
     format='%(asctime)s - %(message)s'
 )
@@ -18,7 +22,7 @@ logging.basicConfig(
 def calculate_motion_delta(old_x, old_y, old_angle, new_x, new_y, new_angle):
     """Calculate motion delta between two poses"""
     delta_x = new_x - old_x
-    delta_y = new_y - old_y
+    delta_y = new_y
     delta_theta = new_angle - old_angle
     while delta_theta > math.pi:
         delta_theta -= 2 * math.pi
@@ -95,7 +99,7 @@ def draw_particles(screen, particles, robot, color=(255, 0, 255), size=2):
     font = pygame.font.Font(None, 24)
     stats_texts = [
         f"Estimated Position: ({stats['estimated_x']:.1f}, {stats['estimated_y']:.1f})",
-        f"Estimated Heading: {math.degrees(stats['estimated_theta']):.1f}°",
+        f"Estimated Heading: {math.degrees(stats['estimated_theta'])::.1f}°",
         f"Position Error: {stats['position_error']:.1f}px",
         f"Angle Error: {stats['angle_error']:.1f}°",
         f"Uncertainty: {stats['uncertainty']:.1f}px"

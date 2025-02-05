@@ -7,7 +7,7 @@ class Robot:
         self.y = y
         self.angle = angle  # Direction in radians
         self.radius = 10
-        self.lidar_range = 200  # Maximum LIDAR range
+        self.lidar_range = 500  # Maximum LIDAR range
         self.lidar_angle_range = 30  # LIDAR angle range in degrees
         self.num_lidar_rays = 50  # Number of LIDAR rays
         self.line_detection_threshold = 3  # Minimum pixels to consider as line detection

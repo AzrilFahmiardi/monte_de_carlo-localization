@@ -1,0 +1,4 @@
+2025-02-03 20:30:44,557 - Frame 30 - Estimated Position: (425.03, 299.00), Heading: 181.02° | Errors - Position: 7.04px, Angle: -178.98° | Uncertainty: 19.26px
+2025-02-03 20:30:49,771 - Frame 60 - Estimated Position: (404.12, 300.98), Heading: 165.37° | Errors - Position: 4.24px, Angle: 165.37° | Uncertainty: 26.94px
+2025-02-03 20:30:54,832 - Frame 90 - Estimated Position: (403.90, 300.98), Heading: 176.35° | Errors - Position: 4.02px, Angle: 176.35° | Uncertainty: 25.68px
+2025-02-03 20:31:01,107 - Frame 120 - Estimated Position: (403.61, 300.08), Heading: 172.12° | Errors - Position: 3.61px, Angle: 172.12° | Uncertainty: 26.22px
